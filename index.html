@@ -4176,7 +4176,7 @@ function eventWasSeen(ch){
  if((state.seenEvents||[]).includes(String(ch.id)))return true;
  if(Array.isArray(state.history)&&state.history.some(h=>String(h?.eventId||'')===String(ch.id)))return true;
  const k=eventTitleKey(ch);
- return !!k && Array.isArray(state.eventTitleHistory)&&state.eventTitleHistory.includes(k);
+ return !ch.id && !!k && Array.isArray(state.eventTitleHistory)&&state.eventTitleHistory.includes(k);
 }
 function registerEventTitle(ch){
  if(!ch)return;
@@ -4185,32 +4185,37 @@ function registerEventTitle(ch){
  if(k&&!state.eventTitleHistory.includes(k))state.eventTitleHistory.push(k);
 }
 function unseenInterlude(){
- const idx=Math.min(CHAPTERS.length-1,Math.max(0,state.chapter||0));
+ const idx=Math.min(CHAPTERS.length-1,Math.max(0,state?.chapter||0));
  const original=CHAPTERS[idx];
- if(original&&!eventWasSeen(original))return original;
- const k='UNIQUE_DAY_'+idx;
- return {id:k,isFollowup:true,title:'돌아오지 않는 하루 · '+(idx+1)+'번째 기록',
-  setting:'같은 사건이 거듭 찾아오는 듯했지만, 삶은 그 자리에 머물지 않았다. 새로운 행인들이 길을 지나고 떠난 사람들은 다른 소식을 남겼다. 당신은 낡은 기록을 덮고 오늘 해야 할 일을 생각했다.',
-  options:[
-   {title:'먼 길을 돌아 이웃의 안부를 확인한다',type:'mercy',moral:'good',effects:{bond:1},text:'오래전 무너졌던 지붕이 조금씩 수리되고 있었다.'},
-   {title:'쌓인 경험을 기록하고 앞으로 나아간다',type:'wisdom',moral:'neutral',effects:{wisdom:1},text:'기록에 적힌 사람의 이름마다 서로 다른 계절이 떠올랐다.'},
-   {title:'조용히 몸을 쉬게 하고 새로운 계절을 기다린다',type:'avoid',moral:'neutral',effects:{spirit:1},text:'문틈 사이의 빛이 기울어 갈 때, 오늘이라는 하루도 기록의 일부가 되었다.'}
-  ]};
+ return original&&!eventWasSeen(original)?original:nayUniqueFallback();
 }
 
 function nayUniqueFallback(){
- const n=Math.max(0,Number(state?.chapter)||0);
- const seen=state?.seenEvents||[];
- const prefix='NAY_UNIQUE_LIFE_'+n+'_';
+ // A fallback must be a distinct lived moment, not a renamed copy of a twelve-line template.
+ const chapter=Math.max(0,Number(state?.chapter)||0);
+ const seen=new Set((state?.seenEvents||[]).map(String));
+ const prefix='NAY_UNIQUE_LIFE_'+chapter+'_';
  let serial=0;
- while(seen.includes(prefix+serial))serial++;
+ while(seen.has(prefix+serial)||(state?.history||[]).some(h=>String(h?.eventId||'')===prefix+serial))serial++;
  const id=prefix+serial;
- return {id,isContextDaily:true,title:'한 번뿐인 생애의 기록 · '+(n+1)+'장 · '+(serial+1)+'번째',
- setting:'지나간 일은 되풀이되지 않는다. 같은 장소에 다시 서더라도 사람과 계절, 당신의 마음은 이전과 달라졌다. 오늘은 아직 기록되지 않은 하루다.',
+ const places=['오래된 우물가','마을의 작은 서고','비가 그친 돌다리','새벽의 공방','늦가을 들판','성벽 아래 골목','숲의 경계','저녁의 여관','산기슭 오솔길','버려진 정원','강가의 나루터','먼지 쌓인 예배당'];
+ const changes=['떠난 이의 편지가 도착했다','무너진 담장을 고치는 사람들이 모였다','길을 잃은 아이가 돌아왔다','오래된 약속을 증언할 사람이 나타났다','봄을 기다리는 씨앗이 나뉘었다','실종된 여행자의 짐이 발견되었다','이웃 간의 다툼이 화해를 요구했다','묵혀 둔 기록에서 잘못된 이름을 찾아냈다','먼 곳의 전쟁 소식이 늦게 도착했다','어느 노인이 잊힌 노래를 들려주었다','폭풍에 무너진 다리를 다시 세워야 했다','돌아온 친구가 낯선 선택을 부탁했다'];
+ const moods=['첫눈이 내리던 아침','장맛비가 그친 오후','달이 구름에 가린 밤','바람이 잠든 새벽','긴 그림자가 드리운 해질녘','서리가 내려앉은 이른 아침','안개가 걷히는 정오','축제가 끝난 다음 날'];
+ const concerns=['가족에게 남길 말','과거에 미뤄 둔 약속','앞으로 떠날 길','이웃과의 오래된 불화','자신이 지켜 온 신념','잊힌 은인의 이름','새로운 세대의 부탁','한때 두려워했던 선택','끝내 이루지 못한 꿈'];
+ const place=places[(chapter+serial*5)%places.length];
+ const change=changes[(chapter*7+serial*7)%changes.length];
+ const mood=moods[(chapter*3+serial*3)%moods.length];
+ const concern=concerns[(chapter+serial*4)%concerns.length];
+ const prior=(state?.history||[]).slice(-1)[0];
+ const memory=prior?.title||prior?.eventTitle||'';
+ const historyLine=memory?'앞서 겪은 「'+String(memory).slice(0,65)+'」의 기억이 문득 떠올랐다. ':'';
+ const lead=mood+', '+place+'에서 '+change+'. '+historyLine+'이번에는 '+concern+'에 관해 결단해야 했다.';
+ return {id,isContextDaily:true,title:'기록되지 않은 날 · '+(chapter+1)+'장 · '+(serial+1)+'번째 선택',
+ setting:lead+' 남들이 보지 못하는 사소한 결정도 시간이 흐르면 다른 결과를 낳는다.',
  options:[
- {title:'낯선 사람의 부탁을 듣고 자신의 길을 정한다',type:'mercy',moral:'good',effects:{bond:1},text:'당신은 오늘 처음 만난 이의 말을 끝까지 들었다.'},
- {title:'지난 경험에서 새로운 판단의 근거를 찾는다',type:'wisdom',moral:'neutral',effects:{wisdom:1},text:'익숙한 기억에서도 새로운 교훈을 발견했다.'},
- {title:'몸과 마음을 돌보며 다음 여정을 준비한다',type:'avoid',moral:'neutral',effects:{spirit:1},text:'잠시 쉬어 가는 것도 이 삶의 한 부분이었다.'}
+  {title:concern+'을 위해 사람들의 손을 빌린다',type:'mercy',moral:'good',effects:{bond:1},text:mood+', '+place+'에 모인 사람들과 '+concern+'을 두고 오래 이야기했다. '+change+' 그날의 결정은 함께한 이들에게 남았다.'},
+  {title:change+'는 일의 원인과 기록을 조사한다',type:'wisdom',moral:'neutral',effects:{wisdom:1},text:place+'에 남겨진 흔적을 조사하며 '+concern+'을 다시 생각했다. 그날 알게 된 사실은 이전의 추측과 달랐다.'},
+  {title:concern+'을 마음에 품고 홀로 길을 나선다',type:'avoid',moral:'neutral',effects:{spirit:1},text:mood+'의 '+place+'를 뒤로했다. '+change+'는 소식이 멀어졌지만 '+concern+'은 오래도록 잊히지 않았다.'}
  ]};
 }
 const rawActiveChapter=activeChapter;
@@ -4807,7 +4812,7 @@ function moralEffectOnCheck(opt){
  if(opt.moral==='good'&&lead>=5)return {bonus:2,text:'몇몇 사람은 당신이 미처 입을 열기도 전에 자리를 내주었다.'};
  if(opt.moral==='good'&&lead<=-5)return {bonus:-2,text:'조용한 거절이 이어졌고 사람들은 서로의 얼굴을 살폈다.'};
  if(opt.moral==='evil'&&lead<=-5)return {bonus:1,text:'사람들은 당신의 눈길을 피하며 길 가장자리로 물러섰다.'};
- if(opt.moral==='neutral'&&m.neutral>=6)return {bonus:1,text:'상인은 계산을 마치고 오래 망설이다 손을 내밀었다.'};
+ if(opt.moral==='neutral'&&m.neutral>=6)return {bonus:1,text:''};
  return {bonus:0,text:''};
 }
 function renderMorality(){
@@ -4994,7 +4999,7 @@ function nayRealisticChoiceCost(opt,ch,delta,details){
  }
  return {delta,details};
 }
-function choose(i){if(!state||state.status!=='play')return;const titleBefore=nayCurrentTitle();const opt=optionsFor()[i];if(!opt)return;const ch=activeChapter();if(ch.isAdaptiveEvent&&Number(opt.adaptiveExpense||0)>Math.max(0,Number(state.gold)||0)){if(!lifeSkipComputing)toast('금화가 부족합니다. '+opt.adaptiveExpense+' G 필요');return;}const preferredFamilyName=nayReadSceneName(ch);if(preferredFamilyName===false)return;maraRememberTurningPoint(ch);state.seenEvents=state.seenEvents||[];if(state.seenEvents.includes(ch.id))return;state.seenEvents.push(ch.id);registerEventTitle(ch);
+function choose(i){if(!state||state.status!=='play')return;const titleBefore=nayCurrentTitle();const opt=optionsFor()[i];if(!opt)return;const ch=activeChapter();if(ch.isAdaptiveEvent&&Number(opt.adaptiveExpense||0)>Math.max(0,Number(state.gold)||0)){if(!lifeSkipComputing)toast('금화가 부족합니다. '+opt.adaptiveExpense+' G 필요');return;}const preferredFamilyName=nayReadSceneName(ch);if(preferredFamilyName===false)return;maraRememberTurningPoint(ch);state.seenEvents=state.seenEvents||[];if(state.seenEvents.includes(ch.id)){delete state.currentScene;if(!lifeSkipComputing)render();return;}state.seenEvents.push(ch.id);registerEventTitle(ch);
  ensureMorality();let checkRecord=null,mythicSecondRecord=null;let rolled=null,success=null,delta={...opt.effects},cause=null,details=softenNarrative(opt.text);const isGamble=!!opt.gamble;const gambleResult=isGamble?gambleResolve(opt,ch):null;if(isGamble){success=gambleResult.success;details=gambleResult.details;delta={...gambleResult.changes};rolled=gambleResult.roll;}const moralCheck=isGamble?{bonus:0,text:''}:moralEffectOnCheck(opt);
  if(opt.check){rolled=1+Math.floor(Math.random()*6);const bonus=itemBonus(opt.check.stat)+(opt.check.stat==='power'?(state.combatBonus||0):0);checkRecord=scaledCheck(rolled,state.stats[opt.check.stat],bonus+moralCheck.bonus+identityCheckBonus(opt),opt.check.difficulty);success=checkRecord.success;if(!success){for(const [k,v] of Object.entries(opt.check.penalty))delta[k]=(delta[k]||0)+v;cause=opt.check.cause;details+='\n\n하지만 계획은 뜻대로 되지 않았다. 대가를 치러야 했다.';if(opt.fatalText)details+='\n\n'+opt.fatalText;}else details+='\n\n긴 침묵 끝에 문이 열렸다. 서로의 눈빛을 살피던 사람들이 천천히 움직이기 시작했다.';}
  if(ch.isMythic&&opt.mythicSecondary&&success===true){
@@ -5091,7 +5096,7 @@ function choose(i){if(!state||state.status!=='play')return;const titleBefore=nay
  nayRecordLifeChoice(ch,opt,success);
  const died=statUnits(state).vitality<=0;
  if(died&&!state.deathCause)state.deathCause=({war:'전쟁',disease:'질병',betrayal:'배신',murder:'암살',accident:'사고'}[cause]||'소진');
- if(!ch.isChildhood&&!ch.isBirthFamily&&!ch.isContextDaily){details+=raceOutcomeProse(ch,opt,success);details+=familyWorldEcho(ch);details+=identityEcho(ch);}
+ if(!ch.isChildhood&&!ch.isBirthFamily&&!ch.isContextDaily){if(ch.isMajor||ch.isFollowup||ch.isFantasyEvent||ch.isCombatEncounter||ch.isAdaptiveEvent){details+=raceOutcomeProse(ch,opt,success);details+=familyWorldEcho(ch);details+=identityEcho(ch);}}
  const labels={vitality:'생명력',power:'힘',wisdom:'지혜',bond:'유대',spirit:'정신력',renown:'명성'};const changed=Object.entries(delta).filter(([k,v])=>v!==0).map(([k,v])=>labels[k]+' '+(v>0?'+':'')+v).join(' · ');
  const divine=divineIntervention(ch,opt,success);if(statUnits(state).vitality<=0&&!died)state.lastDivineDeath=true;if(divine.lines.length)details+='\n\n[신의 개입] '+divine.lines.join(' ');const quote=ch.isWarDirective?warDNarrator('open'):ch.isExpansionWar?warDNarrator(['lake','dragon','commander','legend'][ch.warStep]):divineQuote(ch,opt,success);
  let rollMsg=isGamble?`도박 1D100(${rolled}) / 성공 확률 ${opt.gamble.chance}% · ${success?'대성공':'실패'}`:'';if(checkRecord){const c=checkRecord;rollMsg=`1D6(${c.die}) × 100/15 (${statDisplay(c.dice)}) + ${labels[opt.check.stat]} ${statDisplay(c.ability)} + 보정 ${statDisplay(c.modifier)} = ${statDisplay(c.total)} / 목표 ${statDisplay(c.target)} · ${checkRecord.success?'성공':'실패'}`;}if(mythicSecondRecord){const c=mythicSecondRecord;rollMsg+=' / 공명 1D6('+c.die+') + '+labels[opt.mythicSecondary.stat]+' '+statDisplay(c.ability)+' + 보정 '+statDisplay(c.modifier)+' = '+statDisplay(c.total)+' / 목표 '+statDisplay(c.target)+' · '+(c.success?'성공':'실패');}if(ch.isExpansionWar||ch.isWarSideEvent||ch.isWarDirective||ch.isFantasyEvent)rollMsg='';
